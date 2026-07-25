@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Swipe</string>
+    <string name="accessibility_service_label">Swipe Gesture Service</string>
+    <string name="accessibility_service_description">Permet d'exécuter le swipe vertical quand une cible est détectée.</string>
+    <string name="welcome_title">Swipe bot (Reflets de France)</string>
+    <string name="welcome_instructions">1) Active le service d'accessibilité.\n2) Autorise l'affichage en superposition.\n3) Clique Démarrer puis accepte la capture d'écran.</string>
+    <string name="status_idle">État : arrêté</string>
+    <string name="status_running">État : en cours</string>
+    <string name="action_open_accessibility">Ouvrir paramètres Accessibilité</string>
+    <string name="action_open_overlay_permission">Autoriser la superposition</string>
+    <string name="action_start">Démarrer</string>
+    <string name="action_stop">Arrêter</string>
+    <string name="notification_title">Swipe bot actif</string>
+    <string name="notification_text">Capture et détection en cours.</string>
+</resources>
