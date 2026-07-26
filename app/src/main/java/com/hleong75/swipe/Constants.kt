@@ -23,6 +23,7 @@ object Constants {
 
     const val SWIPE_DISTANCE = 500
     const val SWIPE_DURATION_MS = 220L
+    const val SWIPE_X_OFFSET = 40
     const val COOLDOWN_MS = 900L
 
     const val NOTIFICATION_CHANNEL_ID = "swipe_bot_channel"
