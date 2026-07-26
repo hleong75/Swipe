@@ -184,14 +184,6 @@ class AutomationService : Service(), OverlayController.Callback {
         updateOverlay()
     }
 
-    override fun onDebugRequested() {
-        debugCaptureRequested.set(true)
-    }
-
-    override fun onQuitRequested() {
-        stopSelf()
-    }
-
     private fun buildNotification(): Notification {
         return NotificationCompat.Builder(this, Constants.NOTIFICATION_CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)

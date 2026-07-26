@@ -4,6 +4,8 @@ import android.content.Context
 import android.graphics.PixelFormat
 import android.os.Build
 import android.provider.Settings
+import android.text.TextUtils
+import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
@@ -20,16 +22,13 @@ class OverlayController(
 ) {
     interface Callback {
         fun onPauseResumeRequested()
-        fun onDebugRequested()
-        fun onQuitRequested()
     }
 
     private val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
     private var overlayView: View? = null
     private var stateText: TextView? = null
-    private var detectionText: TextView? = null
-    private var swipeCountText: TextView? = null
-    private var pauseButton: Button? = null
+    private var logText: TextView? = null
+    private var playButton: Button? = null
 
     fun canDrawOverlays(): Boolean = Settings.canDrawOverlays(context)
 
@@ -38,33 +37,29 @@ class OverlayController(
 
         val container = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor(0xCC111111.toInt())
-            setPadding(24, 24, 24, 24)
+            setBackgroundColor(0x66111111)
+            setPadding(16, 12, 16, 12)
         }
 
-        stateText = TextView(context).also { it.setTextColor(0xFFFFFFFF.toInt()) }
-        detectionText = TextView(context).also { it.setTextColor(0xFFFFFFFF.toInt()) }
-        swipeCountText = TextView(context).also { it.setTextColor(0xFFFFFFFF.toInt()) }
+        stateText = TextView(context).also {
+            it.setTextColor(0xFFFFFFFF.toInt())
+            it.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
+        }
+        logText = TextView(context).also {
+            it.setTextColor(0xDDFFFFFF.toInt())
+            it.setTextSize(TypedValue.COMPLEX_UNIT_SP, 10f)
+            it.maxLines = 2
+            it.ellipsize = TextUtils.TruncateAt.END
+        }
 
-        pauseButton = Button(context).apply {
-            text = "Pause"
+        playButton = Button(context).apply {
+            text = "⏸"
             setOnClickListener { callback.onPauseResumeRequested() }
-        }
-        val debugButton = Button(context).apply {
-            text = "Debug"
-            setOnClickListener { callback.onDebugRequested() }
-        }
-        val quitButton = Button(context).apply {
-            text = "Quitter"
-            setOnClickListener { callback.onQuitRequested() }
         }
 
         container.addView(stateText)
-        container.addView(detectionText)
-        container.addView(swipeCountText)
-        container.addView(pauseButton)
-        container.addView(debugButton)
-        container.addView(quitButton)
+        container.addView(logText)
+        container.addView(playButton)
 
         val params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT,
@@ -91,13 +86,12 @@ class OverlayController(
     }
 
     fun updateState(paused: Boolean, detection: DetectionSnapshot?, swipeCount: Int) {
-        stateText?.text = if (paused) "État : en pause" else "État : en cours"
-        detectionText?.text = detection?.let {
+        stateText?.text = if (paused) "OFF" else "ON"
+        logText?.text = detection?.let {
             val label = if (it.type == DetectionType.CREAM_LOGO) "Logo" else "Chrono"
-            "Dernière détection : $label | x=${it.x} | pixels=${it.score}"
-        } ?: "Dernière détection : aucune"
-        swipeCountText?.text = "Swipes : $swipeCount"
-        pauseButton?.text = if (paused) "Reprendre" else "Pause"
+            "$label x=${it.x} px=${it.score} | swipes=$swipeCount"
+        } ?: "Aucune détection | swipes=$swipeCount"
+        playButton?.text = if (paused) "▶" else "⏸"
     }
 
     fun dismiss() {
