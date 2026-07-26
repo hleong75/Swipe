@@ -81,9 +81,13 @@ class OverlayController(
             y = overlayTopOffset()
         }
 
-        overlayView = container
-        windowManager.addView(container, params)
-        updateState(false, null, 0)
+        runCatching {
+            overlayView = container
+            windowManager.addView(container, params)
+            updateState(false, null, 0)
+        }.onFailure {
+            overlayView = null
+        }
     }
 
     fun updateState(paused: Boolean, detection: DetectionSnapshot?, swipeCount: Int) {
