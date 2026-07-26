@@ -12,7 +12,9 @@ import android.graphics.Rect
 import android.media.Image
 import android.os.Build
 import android.os.Environment
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.hleong75.swipe.Constants
@@ -39,6 +41,9 @@ class AutomationService : Service(), OverlayController.Callback {
     private var swipeCount = 0
     private var lastSwipeTimestamp = 0L
     private var lastDetection: DetectionResult? = null
+    private val mainHandler = Handler(Looper.getMainLooper())
+    @Volatile
+    private var destroyed = false
 
     override fun onCreate() {
         super.onCreate()
@@ -61,7 +66,15 @@ class AutomationService : Service(), OverlayController.Callback {
                     stopSelf()
                     return START_NOT_STICKY
                 }
-                captureManager.start(resultCode, resultData)
+                val started = runCatching {
+                    captureManager.start(resultCode, resultData)
+                }.onFailure {
+                    Log.e(TAG, "Failed to start screen capture", it)
+                }.isSuccess
+                if (!started) {
+                    stopSelf()
+                    return START_NOT_STICKY
+                }
                 paused = false
                 updateOverlay()
             }
@@ -78,40 +91,48 @@ class AutomationService : Service(), OverlayController.Callback {
     }
 
     private fun processFrame(image: Image) {
-        if (!paused) {
-            val hit = detector.detect(image)
-            if (hit != null) {
-                lastDetection = hit
-                if (System.currentTimeMillis() - lastSwipeTimestamp >= Constants.COOLDOWN_MS) {
-                    val didSwipe = swipeDispatcher.dispatchSwipe(
-                        startX = hit.x,
-                        startY = hit.y,
-                        distance = Constants.SWIPE_DISTANCE,
-                        durationMs = Constants.SWIPE_DURATION_MS
-                    )
-                    if (didSwipe) {
-                        swipeCount += 1
-                        lastSwipeTimestamp = System.currentTimeMillis()
+        runCatching {
+            if (!paused) {
+                val hit = detector.detect(image)
+                if (hit != null) {
+                    lastDetection = hit
+                    if (System.currentTimeMillis() - lastSwipeTimestamp >= Constants.COOLDOWN_MS) {
+                        val didSwipe = swipeDispatcher.dispatchSwipe(
+                            startX = hit.x,
+                            startY = hit.y,
+                            distance = Constants.SWIPE_DISTANCE,
+                            durationMs = Constants.SWIPE_DURATION_MS
+                        )
+                        if (didSwipe) {
+                            swipeCount += 1
+                            lastSwipeTimestamp = System.currentTimeMillis()
+                        }
                     }
                 }
             }
-        }
 
-        if (debugCaptureRequested.compareAndSet(true, false)) {
-            saveDebugFrame(image)
-            val stats = detector.lastStats
-            Log.d(TAG, "Debug stats - cream(col=${stats.creamColumn},count=${stats.creamCount}) green(col=${stats.greenColumn},count=${stats.greenCount})")
-        }
+            if (debugCaptureRequested.compareAndSet(true, false)) {
+                saveDebugFrame(image)
+                val stats = detector.lastStats
+                Log.d(TAG, "Debug stats - cream(col=${stats.creamColumn},count=${stats.creamCount}) green(col=${stats.greenColumn},count=${stats.greenCount})")
+            }
 
-        updateOverlay()
+            updateOverlay()
+        }.onFailure {
+            Log.e(TAG, "Frame processing failed", it)
+        }
     }
 
     private fun updateOverlay() {
-        overlayController.updateState(
-            paused = paused,
-            detection = lastDetection?.let { DetectionSnapshot(it.type, it.x, it.score) },
-            swipeCount = swipeCount
-        )
+        if (destroyed) return
+        mainHandler.post {
+            if (destroyed) return@post
+            overlayController.updateState(
+                paused = paused,
+                detection = lastDetection?.let { DetectionSnapshot(it.type, it.x, it.score) },
+                swipeCount = swipeCount
+            )
+        }
     }
 
     private fun saveDebugFrame(image: Image) {
@@ -149,6 +170,8 @@ class AutomationService : Service(), OverlayController.Callback {
     }
 
     override fun onDestroy() {
+        destroyed = true
+        mainHandler.removeCallbacksAndMessages(null)
         captureManager.stop()
         overlayController.dismiss()
         super.onDestroy()
@@ -159,14 +182,6 @@ class AutomationService : Service(), OverlayController.Callback {
     override fun onPauseResumeRequested() {
         paused = !paused
         updateOverlay()
-    }
-
-    override fun onDebugRequested() {
-        debugCaptureRequested.set(true)
-    }
-
-    override fun onQuitRequested() {
-        stopSelf()
     }
 
     private fun buildNotification(): Notification {

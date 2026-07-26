@@ -57,6 +57,8 @@ class BeltDetector {
         val buffer = plane.buffer
         val rowStride = plane.rowStride
         val pixelStride = plane.pixelStride
+        if (pixelStride < 3) return null
+        val bufferLimit = buffer.limit()
         val sampleStep = Constants.SAMPLE_STEP.coerceAtLeast(1)
 
         var y = belt.top
@@ -65,7 +67,7 @@ class BeltDetector {
             var x = belt.left
             while (x < belt.right) {
                 val offset = rowStart + x * pixelStride
-                if (offset + 2 < buffer.limit()) {
+                if (offset + 2 < bufferLimit) {
                     val r = buffer.get(offset).toInt() and 0xFF
                     val g = buffer.get(offset + 1).toInt() and 0xFF
                     val b = buffer.get(offset + 2).toInt() and 0xFF
