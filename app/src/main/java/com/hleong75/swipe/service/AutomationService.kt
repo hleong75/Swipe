@@ -24,6 +24,7 @@ import com.hleong75.swipe.detection.BeltDetector
 import com.hleong75.swipe.detection.DetectionResult
 import com.hleong75.swipe.overlay.DetectionSnapshot
 import com.hleong75.swipe.overlay.OverlayController
+import com.hleong75.swipe.swipe.SwipeTarget
 import com.hleong75.swipe.swipe.SwipeDispatcher
 import java.io.File
 import java.io.FileOutputStream
@@ -93,18 +94,23 @@ class AutomationService : Service(), OverlayController.Callback {
     private fun processFrame(image: Image) {
         runCatching {
             if (!paused) {
-                val hit = detector.detect(image)
-                if (hit != null) {
-                    lastDetection = hit
+                val hits = detector.detectAll(image)
+                if (hits.isNotEmpty()) {
+                    lastDetection = hits.first()
                     if (System.currentTimeMillis() - lastSwipeTimestamp >= Constants.COOLDOWN_MS) {
-                        val didSwipe = swipeDispatcher.dispatchSwipe(
-                            startX = hit.x,
-                            startY = hit.y,
+                        val targets = hits.map { hit ->
+                            SwipeTarget(
+                                x = (hit.x + Constants.SWIPE_X_OFFSET).coerceIn(hit.beltRect.left, hit.beltRect.right - 1),
+                                y = hit.y
+                            )
+                        }
+                        val didSwipe = swipeDispatcher.dispatchSwipes(
+                            targets = targets,
                             distance = Constants.SWIPE_DISTANCE,
                             durationMs = Constants.SWIPE_DURATION_MS
                         )
                         if (didSwipe) {
-                            swipeCount += 1
+                            swipeCount += targets.size
                             lastSwipeTimestamp = System.currentTimeMillis()
                         }
                     }

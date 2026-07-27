@@ -37,12 +37,16 @@ class BeltDetector {
     private var greenCounts = IntArray(0)
 
     fun detect(image: Image): DetectionResult? {
+        return detectAll(image).maxByOrNull { it.score }
+    }
+
+    fun detectAll(image: Image): List<DetectionResult> {
         val width = image.width
         val height = image.height
-        if (width <= 0 || height <= 0) return null
+        if (width <= 0 || height <= 0) return emptyList()
 
         val belt = beltRect(width, height)
-        if (belt.width() <= 0 || belt.height() <= 0) return null
+        if (belt.width() <= 0 || belt.height() <= 0) return emptyList()
 
         val columns = ceil(belt.width() / Constants.COLUMN_WIDTH.toDouble()).toInt().coerceAtLeast(1)
         if (creamCounts.size != columns) {
@@ -57,7 +61,7 @@ class BeltDetector {
         val buffer = plane.buffer
         val rowStride = plane.rowStride
         val pixelStride = plane.pixelStride
-        if (pixelStride < 3) return null
+        if (pixelStride < 3) return emptyList()
         val bufferLimit = buffer.limit()
         val sampleStep = Constants.SAMPLE_STEP.coerceAtLeast(1)
 
@@ -87,25 +91,35 @@ class BeltDetector {
 
         val creamOk = bestCreamCount >= Constants.CREAM_MIN_MATCH
         val greenOk = bestGreenCount >= Constants.GREEN_MIN_MATCH
-        if (!creamOk && !greenOk) return null
+        if (!creamOk && !greenOk) return emptyList()
 
-        val useCream = creamOk && (!greenOk || bestCreamCount >= bestGreenCount)
-        val chosenCol = if (useCream) bestCreamCol else bestGreenCol
-        val chosenScore = if (useCream) bestCreamCount else bestGreenCount
-        val chosenType = if (useCream) DetectionType.CREAM_LOGO else DetectionType.GREEN_TIMER
+        val detections = ArrayList<DetectionResult>(columns)
+        for (columnIndex in 0 until columns) {
+            val creamCount = creamCounts[columnIndex]
+            val greenCount = greenCounts[columnIndex]
+            val creamDetected = creamCount >= Constants.CREAM_MIN_MATCH
+            val greenDetected = greenCount >= Constants.GREEN_MIN_MATCH
+            if (!creamDetected && !greenDetected) continue
 
-        val columnLeft = belt.left + chosenCol * Constants.COLUMN_WIDTH
-        val xCenter = min(width - 1, columnLeft + (Constants.COLUMN_WIDTH / 2))
-        val yCenter = belt.centerY()
+            val useCream = creamDetected && (!greenDetected || creamCount >= greenCount)
+            val chosenScore = if (useCream) creamCount else greenCount
+            val chosenType = if (useCream) DetectionType.CREAM_LOGO else DetectionType.GREEN_TIMER
 
-        return DetectionResult(
-            type = chosenType,
-            x = xCenter,
-            y = yCenter,
-            score = chosenScore,
-            columnIndex = chosenCol,
-            beltRect = Rect(belt)
-        )
+            val columnLeft = belt.left + columnIndex * Constants.COLUMN_WIDTH
+            val xCenter = min(width - 1, columnLeft + (Constants.COLUMN_WIDTH / 2))
+            val yCenter = belt.centerY()
+
+            detections += DetectionResult(
+                type = chosenType,
+                x = xCenter,
+                y = yCenter,
+                score = chosenScore,
+                columnIndex = columnIndex,
+                beltRect = Rect(belt)
+            )
+        }
+
+        return detections.sortedByDescending { it.score }
     }
 
     private fun beltRect(screenWidth: Int, screenHeight: Int): Rect {
